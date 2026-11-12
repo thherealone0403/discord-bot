@@ -1,0 +1,165 @@
+import os
+import re
+import asyncio
+from typing import Optional
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+TOKEN = os.getenv("DISCORD_TOKEN")
+WELCOME_CHANNEL_ID = int(os.getenv("WELCOME_CHANNEL_ID", "1570259898690961591"))
+AUTO_ROLE_ID = int(os.getenv("AUTO_ROLE_ID", "1570262416502030356"))
+TICKET_CATEGORY_NAME = os.getenv("TICKET_CATEGORY_NAME", "Tickets")
+
+intents = discord.Intents.default()
+intents.members = True
+intents.guilds = True
+intents.message_content = True
+
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+URL_REGEX = re.compile(
+    r"(?:https?://|www\.)[^\s]+|discord\.gg/[^\s]+|discordapp\.com/invite/[^\s]+",
+    re.IGNORECASE,
+)
+
+
+async def send_welcome_message(member: discord.Member) -> None:
+    channel = bot.get_channel(WELCOME_CHANNEL_ID)
+    if not channel:
+        return
+    if not isinstance(channel, discord.TextChannel):
+        return
+
+    await channel.send(
+        f"Willkommen auf dem Server, {member.mention}! "
+        "Bitte lese die Regeln und behalte die Community-Guidelines im Blick. "
+        "Viel Spaß auf dem Server!"
+    )
+
+
+async def assign_auto_role(member: discord.Member) -> None:
+    role = member.guild.get_role(AUTO_ROLE_ID)
+    if role:
+        await member.add_roles(role, reason="Automatische Rolle beim Join")
+
+
+async def ensure_ticket_category(guild: discord.Guild) -> discord.CategoryChannel:
+    for category in guild.categories:
+        if category.name == TICKET_CATEGORY_NAME:
+            return category
+    return await guild.create_category(TICKET_CATEGORY_NAME)
+
+
+@bot.event
+async def on_ready() -> None:
+    print(f"Bot online: {bot.user} ({bot.user.id})")
+    try:
+        synced = await bot.tree.sync()
+        print(f"{len(synced)} Befehle synchronisiert")
+    except Exception as exc:  # pragma: no cover - Debugging only
+        print(f"Fehler beim Sync: {exc}")
+
+
+@bot.event
+async def on_member_join(member: discord.Member) -> None:
+    await assign_auto_role(member)
+    await send_welcome_message(member)
+
+
+@bot.event
+async def on_message(message: discord.Message) -> None:
+    if message.author.bot:
+        return
+
+    if URL_REGEX.search(message.content):
+        try:
+            await message.delete()
+        except discord.Forbidden:
+            pass
+        except discord.NotFound:
+            pass
+
+        await message.channel.send(
+            f"{message.author.mention}, Links sind hier nicht erlaubt!",
+            delete_after=5,
+        )
+        return
+
+    await bot.process_commands(message)
+
+
+@bot.tree.command(name="ticket", description="Erstellt ein Ticket")
+@app_commands.describe(reason="Grund für das Ticket")
+async def ticket_command(interaction: discord.Interaction, reason: str):
+    if not interaction.guild:
+        await interaction.response.send_message("Dieser Befehl funktioniert nur auf einem Server.", ephemeral=True)
+        return
+
+    category = await ensure_ticket_category(interaction.guild)
+    member = interaction.user
+    role_overwrites = {
+        interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+        member: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
+    }
+
+    for role in interaction.guild.roles:
+        if role.permissions.manage_channels:
+            role_overwrites[role] = discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+                manage_channels=True,
+            )
+
+    channel_name = f"ticket-{member.name.lower()}-{member.discriminator}"
+    channel = await interaction.guild.create_text_channel(
+        channel_name,
+        category=category,
+        overwrites=role_overwrites,
+    )
+
+    await channel.send(
+        f"{member.mention}, dein Ticket wurde erstellt.\n"
+        f"Grund: {reason}\n\n"
+        "Bitte beschreibe dein Anliegen kurz und ein Moderator wird sich kümmern."
+    )
+
+    await interaction.response.send_message(f"Dein Ticket wurde erstellt: {channel.mention}", ephemeral=True)
+
+
+@bot.tree.command(name="closeticket", description="Schließt das aktuelle Ticket")
+async def close_ticket(interaction: discord.Interaction):
+    if not interaction.channel:
+        await interaction.response.send_message("Das ist kein gültiger Kanal.", ephemeral=True)
+        return
+
+    channel_name = interaction.channel.name.lower()
+    if "ticket-" not in channel_name:
+        await interaction.response.send_message("Dieser Kanal ist kein Ticket.", ephemeral=True)
+        return
+
+    await interaction.response.send_message("Ticket wird geschlossen...", ephemeral=True)
+    await asyncio.sleep(1)
+    await interaction.channel.delete(reason="Ticket geschlossen")
+
+
+@bot.tree.command(name="setup", description="Prüft die Ticket-Konfiguration")
+async def setup_command(interaction: discord.Interaction):
+    if not interaction.guild:
+        await interaction.response.send_message("Dieser Befehl funktioniert nur auf einem Server.", ephemeral=True)
+        return
+
+    category = await ensure_ticket_category(interaction.guild)
+    await interaction.response.send_message(
+        f"Ticket-System bereit. Kategorie: {category.mention}",
+        ephemeral=True,
+    )
+
+
+if __name__ == "__main__":
+    if not TOKEN:
+        raise ValueError("DISCORD_TOKEN ist nicht gesetzt. Bitte in der .env-Datei hinterlegen.")
+
+    bot.run(TOKEN, reconnect=True)
