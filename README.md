@@ -4,29 +4,26 @@ Ein Python-Discord-Bot mit Ticket-System, Bewerbungen, Teamverwaltung und Modera
 
 ## Funktionen
 
-- `/ticket-panel`: Erstellt ein Ticket-Panel mit Dropdown für Support, Meldungen und Sonstiges. Tickets sind privat; Ersteller können sie mit `/close-ticket` oder dem Button im Ticket schließen.
+- `/ticket-panel`: Erstellt ein Ticket-Panel mit Dropdown für Support, Meldungen und Sonstiges. Tickets sind privat und können vom Ersteller oder der Serververwaltung geschlossen werden.
 - Automatische Rolle und Willkommensnachricht beim Serverbeitritt.
-- Link-Blocker: Nachrichten mit URLs/Discord-Einladungen werden gelöscht.
-- Trial-Mod-Bewerbungen mit Formular, Annahme/Ablehnung und automatischer Rollenvergabe.
-- `/uprank`, `/downrank` und `/warn` mit Rollenprüfung und Rangänderungs-Log.
-- `/ping`, `/server` und `/user`.
+- Link-Blocker ausschließlich für die Rolle **Member** (per `MEMBER_ROLE_ID` oder Rollenname `Member`). Andere Rollen können weiterhin Links senden.
+- TikTok-Live-Überwachung für `louis.hnvr157`: Wenn der Account live geht, postet der Bot im konfigurierten Channel eine Ankündigung mit Live-Link. Standard-Channel: `1570261943032479825`.
+- Trial-Mod-Bewerbungen, Rangverwaltung, Verwarnungen sowie `/ping`, `/server` und `/user`.
 - Docker-Unterstützung.
 
 ## Einrichtung
 
 1. Python 3.10+ installieren.
 2. Abhängigkeiten installieren: `pip install -r requirements.txt`.
-3. `.env.example` nach `.env` kopieren und `DISCORD_TOKEN` sowie Channel-/Rollen-IDs prüfen.
-4. Im Discord Developer Portal unter **Bot → Privileged Gateway Intents** `Server Members Intent` und `Message Content Intent` aktivieren. Den Bot mit den Scopes `bot` und `applications.commands` einladen. Er braucht je nach Funktionen mindestens `Manage Channels`, `Manage Roles`, `Send Messages`, `View Channels`, `Read Message History` und `Manage Messages`.
-5. Bot starten: `python main.py`.
+3. `.env.example` nach `.env` kopieren und `DISCORD_TOKEN` eintragen. Prüfe bei Bedarf insbesondere `MEMBER_ROLE_ID`, `TIKTOK_USERNAME` und `TIKTOK_CHANNEL_ID`.
+4. Im Discord Developer Portal unter **Bot → Privileged Gateway Intents** `Server Members Intent` und `Message Content Intent` aktivieren. Den Bot mit den Scopes `bot` und `applications.commands` einladen.
+5. Bot starten: `python run_bot.py`.
 
-## Ticket-Panel
+Der Bot braucht im Ankündigungs-Channel die Berechtigung **Nachrichten senden**. Damit der Link-Blocker Nachrichten löschen kann, benötigt er außerdem **Nachrichten verwalten**. Aktivierte Rollen-IDs müssen aus demselben Discord-Server stammen.
 
-Mit `/ticket-panel` in einem Server-Channel wird das Dropdown-Panel dort veröffentlicht. Der Befehl ist für Mitglieder mit **Server verwalten**. Beim Auswählen erstellt der Bot einen privaten Ticket-Channel und sendet dort einen Schließen-Button. Optional lässt sich `TICKET_CATEGORY_ID` setzen; andernfalls nutzt/erstellt der Bot eine Kategorie mit `TICKET_CATEGORY_NAME`.
+## Ticket-Panel und Bewerbungen
 
-## Bewerbungen und Teamverwaltung
-
-Die Channel- und Rollen-IDs der Fynnis-Systeme sind als Standardwerte hinterlegt und können in `.env` überschrieben werden. Reviewer mit einer der konfigurierten Review-Rollen können `/apply-panel`, `/apply-on` und `/apply-off` verwenden. Management-Rollen können `/uprank`, `/downrank` und `/warn` verwenden. Die Teamrollen-Hierarchie ist in `main.py` festgelegt.
+Mit `/ticket-panel` wird das Ticket-Dropdown im aktuellen Channel veröffentlicht. Bewerbungs-Panel und Teamverwaltung verwenden die in `.env` konfigurierten Channel- und Rollen-IDs.
 
 ## Docker
 
